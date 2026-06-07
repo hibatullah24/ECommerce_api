@@ -6,7 +6,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.Text;
 using System.Text.RegularExpressions;
 
- namespace E_Commerce_System.Models
+ namespace ECommerce_api.Models
 {
     [Index(nameof(Email), IsUnique = true)]
     public class User

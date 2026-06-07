@@ -3,17 +3,22 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
-using E_Commerce_System.Models;
+using ECommerce_api.Models;
 
-namespace E_Commerce_System
+namespace ECommerce_api
 {
-    internal class ApplicationDbContext : DbContext
+    public class ApplicationDbContext : DbContext
     {
-        protected override void OnConfiguring(DbContextOptionsBuilder options)
-        {
-            //connection t database
-            options.UseSqlServer(" Data Source=(localdb)\\MSSQLLocalDB; Initial Catalog=E-Commerce System; Integrated Security=true; TrustServerCertificate=True ");
-        }
+        //protected override void OnConfiguring(Db_contextOptionsBuilder options)
+        //{
+        //    //connection t database
+        //    options.UseSqlServer(" Data Source=(localdb)\\MSSQLLocalDB; Initial Catalog=ECommerce api; Integrated Security=true; TrustServerCertificate=True ");
+        //}
+
+        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+         : base(options) { }
+
+
 
         // register the models 
 
@@ -23,5 +28,6 @@ namespace E_Commerce_System
         public DbSet<OrderProduct> OrderProducts { get; set; }
         public DbSet<Review> Reviews { get; set; }
 
+        
     }
 }

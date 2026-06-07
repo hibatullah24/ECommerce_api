@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace E_Commerce_System.Migrations
+namespace ECommerce_api.Migrations
 {
     /// <inheritdoc />
     public partial class lastUpdate : Migration

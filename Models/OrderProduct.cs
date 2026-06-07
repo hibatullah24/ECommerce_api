@@ -6,7 +6,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace E_Commerce_System.Models
+namespace ECommerce_api.Models
 {
     [PrimaryKey(nameof(OId), nameof(PId))]
     public class OrderProduct

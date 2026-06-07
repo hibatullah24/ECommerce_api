@@ -1,18 +1,38 @@
-﻿using E_Commerce_System;
-using E_Commerce_System.Models;
+﻿using ECommerce_api;
+using ECommerce_api.DTOs;
+using ECommerce_api.Models;
+using ECommerce_api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace E_Commerce_system_api.Controllers
+namespace ECommerce_api_api.Controllers
 {
     [ApiController]
     [Route("api/Products")]
     public class ProductsController : ControllerBase
     {
-        ApplicationDbContext context = new ApplicationDbContext();
+        
 
-         [HttpPost("AddProduct")]
-         public IActionResult AddProduct(AddProductRequest request)
+        public ApplicationDbContext _context;
+        public LoggingService<ProductsController> _logger;
+
+        public ProductsController(ApplicationDbContext context, ILogger<ProductsController> logger)
         {
+            _context = context;
+            _logger = new LoggingService<ProductsController>(logger);
+        }
+        [Authorize(Roles = "Admin")]
+        [HttpPost("AddProduct")]
+         public IActionResult AddProduct(int adminId, AddProductRequest request)
+        {
+            var requestingUser = _context.Users.Find(adminId);
+            if (requestingUser == null || requestingUser.Role != "Admin")
+            {
+                _logger.LogWarning("Unauthorized access attempt to AddProduct by user ID {AdminId}", adminId);
+                return Unauthorized("Access denied. Admins only.");
+            }
+              
+
             if (string.IsNullOrWhiteSpace(request.PName))
                 return BadRequest("Product name is required.");
 
@@ -34,17 +54,30 @@ namespace E_Commerce_system_api.Controllers
 
             };
 
-            context.Products.Add(product);
-            context.SaveChanges();
+            _context.Products.Add(product);
+            _context.SaveChanges();
+            _logger.LogInfo("Product {ProductId} '{ProductName}' added by Admin {AdminId}.", product.PId, product.PName, adminId);
+
             return Ok("Product added successfully.");
         }
 
+        [Authorize(Roles = "Admin")]
         [HttpPut("UpdateProduct")]
-        public IActionResult UpdateProduct (int id, UpdateProductRequest request)
+        public IActionResult UpdateProduct (int adminId, int id, UpdateProductRequest request)
         {
-            var product = context.Products.Find(id);
+            var requestingUser = _context.Users.Find(adminId);
+            if (requestingUser == null || requestingUser.Role != "Admin")
+            {
+                _logger.LogWarning("Unauthorized access attempt to UpdateProduct by user ID {AdminId}", adminId);
+                return Unauthorized("Access denied. Admins only.");
+
+            }
+            var product = _context.Products.Find(id);
             if (product == null)
+            {
+                _logger.LogWarning("Product with ID {ProductId} not found for update by Admin {AdminId}.", id, adminId);
                 return NotFound("Product not found");
+            }
 
             if (request.Price <= 0)
                 return BadRequest("Price must be greater than zero.");
@@ -54,57 +87,67 @@ namespace E_Commerce_system_api.Controllers
 
             product.Price = request.Price;
             product.Stock = request.Stock;
-            context.Products.Update(product);
-            context.SaveChanges();
+            _context.Products.Update(product);
+            _context.SaveChanges();
+
+            _logger.LogInfo("Product {ProductId} updated by Admin {AdminId}. New Price: {Price}, New Stock: {Stock}.", product.PId, adminId, product.Price, product.Stock);
             return Ok("Product updated successfully.");
         }
 
+        [AllowAnonymous]
         [HttpGet("GetAllProducts")]
-        public IActionResult GetAllProducts(int page =1)
+        public IActionResult GetAllProducts( int page =1)
         {
+
             const int pagesize = 10;
 
-            int totalCount = context.Products.Count();
+            int totalCount = _context.Products.Count();
             if (totalCount == 0)
+            {
+                _logger.LogWarning("GetAllProducts: No products found.");
                 return NotFound("No products available.");
+
+            }
 
             int totalPages = (int)Math.Ceiling(totalCount / (double)pagesize);
 
             if (page < 1 || page > totalPages)
                 return BadRequest($"Invalid page number.Valid range: 1 - {totalPages}.");
 
-            var products = context.Products.OrderBy(p => p.PName)
-                                           .Skip((page - 1) * pagesize)
+            var products = _context.Products.OrderBy(p => p.PName)
+                                          .Skip((page - 1) * pagesize)
                                            .Take(pagesize)
                                            .ToList();
+
+            _logger.LogInfo("GetAllProducts: Returned page {Page} of {TotalPages}.", page, totalPages);
+
             return Ok(products);
         }
 
+
+        [AllowAnonymous]
         [HttpGet("GetProductById")]
-        public IActionResult GetProductById (int id)
+        public IActionResult GetProductById ( int id)
         {
-            var product = context.Products.Find(id);
+  
+
+            var product = _context.Products.Find(id);
             if (product == null)
+            {
+                _logger.LogWarning("GetProductById: Product {ProductId} not found.", id);
                 return NotFound("Product not found.");
 
+            }
+
+            _logger.LogInfo("GetProductById: Product {ProductId} retrieved.", id);
             return Ok(product);
         }
 
 
 
-        public class AddProductRequest
-        {
-            public string PName { get; set; }
-            public string Description { get; set; }
-            public decimal Price { get; set; }
-            public int Stock { get; set; }
-        }
+       
 
-        public class UpdateProductRequest
-        {
-            public decimal Price { get; set; }
-            public int Stock { get; set; }
-        }
+       
 
 
     }

@@ -1,4 +1,4 @@
-﻿namespace E_Commerce_system_api.Models
+﻿namespace ECommerce_api_api.Models
 {
     public class LoginRequest
     {

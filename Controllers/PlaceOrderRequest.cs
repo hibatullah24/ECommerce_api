@@ -1,4 +1,4 @@
-﻿namespace E_Commerce_system_api.Controllers
+﻿namespace ECommerce_api_api.Controllers
 {
     public class PlaceOrderRequest
     {

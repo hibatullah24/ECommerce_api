@@ -26,100 +26,118 @@ namespace ECommerce_api_api.Controllers
         [HttpPost("AddReview")]
         public IActionResult AddReview( AddReviewRequest request)
         {
-          
 
-            var product = _context.Products.Find(request.PId);
-            if (product == null)
+
+            try
             {
-                _logger.LogWarning("AddReview failed: Product {ProductId} not found.", request.PId);
-                return NotFound("Product not found.");
+                var product = _context.Products.Find(request.PId);
+                if (product == null)
+                {
+                    _logger.LogWarning("AddReview failed: Product {ProductId} not found.", request.PId);
+                    return NotFound("Product not found.");
+                }
+
+
+                //user cannot review the same product more than once.
+                var existingReview = _context.Reviews.FirstOrDefault(r => r.PId == request.PId && r.UId == request.UId);
+                if (existingReview != null)
+                {
+                    _logger.LogWarning("AddReview failed: User {UserId} already reviewed Product {ProductId}.", request.UId, request.PId);
+                    return BadRequest("You have already reviewed this product");
+                }
+
+                //A user can only review a product they have purchased.
+                var hasPurchased = _context.OrderProducts.Any(op => op.PId == request.PId && op.Order.UId == request.UId);
+                if (!hasPurchased)
+                {
+                    _logger.LogWarning("AddReview failed: User {UserId} has not purchased Product {ProductId}.", request.UId, request.PId);
+                    return BadRequest("You can only review products you have purchased.");
+                }
+
+                var user = _context.Users.Find(request.UId);
+                if (user == null)
+                    return NotFound("User not found.");
+
+                //Rating must be between 1 and 5.
+                if (request.Rating < 1 || request.Rating > 5)
+                    return BadRequest("Rating must be between 1 and 5.");
+
+                if (string.IsNullOrWhiteSpace(request.Comment))
+                    return BadRequest("Comment is required.");
+
+                var review = new Review
+                {
+                    UId = request.UId,
+                    PId = request.PId,
+                    Rating = request.Rating,
+                    Comment = request.Comment,
+                    ReviewDate = DateTime.Now
+
+                };
+
+
+
+                _context.Reviews.Add(review);
+                recalculateProductRating(request.PId);
+                _context.SaveChanges();
+
+                _logger.LogInfo("User {UserId} added review for Product {ProductId}.", request.UId, request.PId);
+                return Ok(new { message = "Review added successfully.", reviewId = review.RId });
+
             }
-
-
-            //user cannot review the same product more than once.
-            var existingReview = _context.Reviews.FirstOrDefault(r => r.PId == request.PId && r.UId == request.UId);
-            if (existingReview != null)
+            catch(Exception ex)
             {
-                _logger.LogWarning("AddReview failed: User {UserId} already reviewed Product {ProductId}.", request.UId, request.PId);
-                return BadRequest("You have already reviewed this product");
+                _logger.LogError("AddReview failed with an unexpected error: {Message}", ex.Message);
+                return BadRequest("An unexpected error occurred while adding the review.");
             }
-
-            //A user can only review a product they have purchased.
-            var hasPurchased = _context.OrderProducts.Any(op => op.PId == request.PId && op.Order.UId == request.UId);
-            if (!hasPurchased)
-            {
-                _logger.LogWarning("AddReview failed: User {UserId} has not purchased Product {ProductId}.", request.UId, request.PId);
-                return BadRequest("You can only review products you have purchased.");
-            }
-
-            var user = _context.Users.Find(request.UId);
-            if (user == null)
-                 return NotFound("User not found.");
-
-            //Rating must be between 1 and 5.
-            if (request.Rating<1 || request.Rating > 5)
-                return BadRequest("Rating must be between 1 and 5.");
-
-            if(string.IsNullOrWhiteSpace(request.Comment))
-                return BadRequest("Comment is required.");
-
-            var review = new Review
-            {
-                UId = request.UId,
-                PId = request.PId,
-                Rating = request.Rating,
-                Comment = request.Comment,
-                ReviewDate = DateTime.Now
-
-            };
-                
-
-           
-            _context.Reviews.Add(review);
-            recalculateProductRating(request.PId);
-            _context.SaveChanges();
-
-            _logger.LogInfo("User {UserId} added review for Product {ProductId}.", request.UId, request.PId);
-            return Ok(new {message = "Review added successfully.", reviewId = review.RId});
-
         }
 
         [Authorize]
         [HttpPut("EditReview")]
         public IActionResult EditReview( int Reviewid, int userId, EditReviewRequest request)
         {
-
-
-            var review = _context.Reviews.FirstOrDefault(rv => rv.RId == Reviewid);
-            if (review == null)
+            try
             {
-                _logger.LogWarning("EditReview failed: Review {ReviewId} not found.", reviewId);
-                return NotFound("Review not found.");
+
+                var review = _context.Reviews.FirstOrDefault(rv => rv.RId == Reviewid);
+                if (review == null)
+                {
+                    _logger.LogWarning("EditReview failed: Review {ReviewId} not found.", reviewId);
+                    return NotFound("Review not found.");
+                }
+
+                if (review.UId != userId)
+                {
+                    _logger.LogWarning("EditReview failed: User {UserId} tried to edit Review {ReviewId} they don't own.", userId, reviewId);
+                    return Unauthorized("You can only edit your own reviews");
+                }
+
+                if (request.Rating < 1 || request.Rating > 5)
+                    return BadRequest("Rating must be between 1 and 5.");
+
+                if (string.IsNullOrWhiteSpace(request.Comment))
+                    return BadRequest("Comment is required");
+
+                review.Rating = request.Rating;
+                review.Comment = request.Comment;
+                _context.Reviews.Update(review);
+
+                recalculateProductRating(review.PId);
+                _context.SaveChanges();
+
+
+
+                _logger.LogInfo("User {UserId} edited Review {ReviewId}.", userId, reviewId);
+                return Ok("Review update successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("EditReview failed with an unexpected error: {Message}", ex.Message);
+                return BadRequest("An unexpected error occurred while editing the review.");
+
             }
 
-            if (review.UId != userId)
-            {
-                _logger.LogWarning("EditReview failed: User {UserId} tried to edit Review {ReviewId} they don't own.", userId, reviewId);
-                return Unauthorized("You can only edit your own reviews");
-            }
 
-            if (request.Rating < 1 || request.Rating > 5)
-                return BadRequest("Rating must be between 1 and 5.");
-
-            if (string.IsNullOrWhiteSpace(request.Comment))
-                return BadRequest("Comment is required");
-
-            review.Rating = request.Rating;
-            review.Comment = request.Comment;
-            _context.Reviews.Update(review);
-
-            recalculateProductRating(review.PId);
-            _context.SaveChanges();
-
-
-
-            _logger.LogInfo("User {UserId} edited Review {ReviewId}.", userId, reviewId);
-            return Ok("Review update successfully");
         }
 
         [Authorize]

@@ -23,7 +23,7 @@ namespace ECommerce_api_api.Controllers
         }
         [Authorize(Roles = "Admin")]
         [HttpPost("AddProduct")]
-         public IActionResult AddProduct(int adminId, AddProductRequest request)
+        public IActionResult AddProduct(int adminId, AddProductRequest request)
         {
             try
             {
@@ -62,14 +62,16 @@ namespace ECommerce_api_api.Controllers
 
                 return Ok("Product added successfully.");
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError("AddProduct failed with an unexpected error: {Message}", ex.Message);
                 return BadRequest("An unexpected error occurred while adding the product.");
             }
+        }
 
             [Authorize(Roles = "Admin")]
             [HttpPut("UpdateProduct")]
+            
             public IActionResult UpdateProduct(int adminId, int id, UpdateProductRequest request)
             {
                 try
@@ -102,14 +104,15 @@ namespace ECommerce_api_api.Controllers
                     _logger.LogInfo("Product {ProductId} updated by Admin {AdminId}. New Price: {Price}, New Stock: {Stock}.", product.PId, adminId, product.Price, product.Stock);
                     return Ok("Product updated successfully.");
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     _logger.LogError("UpdateProduct failed with an unexpected error: {Message}", ex.Message);
                     return BadRequest("An unexpected error occurred while updating the product.");
                 }
             }
-            
-        }
+
+        
+        
 
         [AllowAnonymous]
         [HttpGet("GetAllProducts")]

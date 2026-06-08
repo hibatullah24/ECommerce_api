@@ -144,30 +144,40 @@ namespace ECommerce_api_api.Controllers
         [HttpDelete("DeleteReview")]
         public IActionResult DeleteReview( int Reviewid, int userId)
         {
- 
-
-            var review = _context.Reviews.FirstOrDefault(r => r.RId == Reviewid);
-            if (review == null)
+            try
             {
-                _logger.LogWarning("DeleteReview failed: Review {ReviewId} not found.", reviewId);
-                return NotFound("Review not found.");
+                var review = _context.Reviews.FirstOrDefault(r => r.RId == Reviewid);
+                if (review == null)
+                {
+                    _logger.LogWarning("DeleteReview failed: Review {ReviewId} not found.", reviewId);
+                    return NotFound("Review not found.");
+
+                }
+
+                if (review.UId != userId)
+                {
+                    _logger.LogWarning("DeleteReview failed: User {UserId} tried to delete Review {ReviewId} they don't own.", userId, reviewId);
+                    return Unauthorized("You can only delete your own reviews");
+                }
+
+                int productId = review.PId;
+                _context.Reviews.Remove(review);
+
+                recalculateProductRating(productId);
+                _context.SaveChanges();
+
+                _logger.LogInfo("User {UserId} deleted Review {ReviewId}.", userId, reviewId);
+                return Ok("Review deleted successfully");
 
             }
-
-            if (review.UId != userId)
+            catch(Exception ex)
             {
-                _logger.LogWarning("DeleteReview failed: User {UserId} tried to delete Review {ReviewId} they don't own.", userId, reviewId);
-                return Unauthorized("You can only delete your own reviews");
+                _logger.LogError("DeleteReview failed with an unexpected error: {Message}", ex.Message);
+                return BadRequest("An unexpected error occurred while deleting the review.");
             }
 
-            int productId = review.PId;
-            _context.Reviews.Remove(review);
 
-            recalculateProductRating(productId);
-            _context.SaveChanges();
 
-            _logger.LogInfo("User {UserId} deleted Review {ReviewId}.", userId, reviewId);
-            return Ok("Review deleted successfully");
 
         }
 
@@ -175,65 +185,81 @@ namespace ECommerce_api_api.Controllers
         [HttpGet("GetProductReviews")]
         public IActionResult GetProductReviews( int productId, int page = 1)
         {
-
-
-            var product = _context.Products.Find(productId);
-            if (product == null)
+            try
             {
-                _logger.LogWarning("GetProductReviews: Product {ProductId} not found.", productId);
-                return NotFound("Product not found.");
-            }
-
-            const int pageSize = 5;
-            int total = _context.Reviews.Count(r => r.PId == productId);
-            if (total == 0)
-            {
-                _logger.LogWarning("GetProductReviews: No reviews for Product {ProductId}.", productId);
-                return NotFound("No reviews found for this product.");
-            }
-
-            int totalPages = (int)Math.Ceiling(total / (double)pageSize);
-            if (page < 1 || page > totalPages)
-                return BadRequest($"Invalid page. Valid range: 1 - {totalPages}.");
-
-            var reviews = _context.Reviews
-                .Where(r => r.PId == productId)
-                .OrderByDescending(r => r.ReviewDate)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .Select(r => new          
+                var product = _context.Products.Find(productId);
+                if (product == null)
                 {
-                    reviewId = r.RId,
-                    userId = r.UId,
-                    rating = r.Rating,
-                    comment = r.Comment,
-                    reviewDate = r.ReviewDate
-                })
-                .ToList();
+                    _logger.LogWarning("GetProductReviews: Product {ProductId} not found.", productId);
+                    return NotFound("Product not found.");
+                }
 
-            _logger.LogInfo("GetProductReviews: Returned page {Page} for Product {ProductId}.", page, productId);
+                const int pageSize = 5;
+                int total = _context.Reviews.Count(r => r.PId == productId);
+                if (total == 0)
+                {
+                    _logger.LogWarning("GetProductReviews: No reviews for Product {ProductId}.", productId);
+                    return NotFound("No reviews found for this product.");
+                }
+
+                int totalPages = (int)Math.Ceiling(total / (double)pageSize);
+                if (page < 1 || page > totalPages)
+                    return BadRequest($"Invalid page. Valid range: 1 - {totalPages}.");
+
+                var reviews = _context.Reviews
+                    .Where(r => r.PId == productId)
+                    .OrderByDescending(r => r.ReviewDate)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(r => new
+                    {
+                        reviewId = r.RId,
+                        userId = r.UId,
+                        rating = r.Rating,
+                        comment = r.Comment,
+                        reviewDate = r.ReviewDate
+                    })
+                    .ToList();
+
+                _logger.LogInfo("GetProductReviews: Returned page {Page} for Product {ProductId}.", page, productId);
 
 
-            return Ok(new
+                return Ok(new
+                {
+                    overallRating = product.OverallRating,
+                    totalReviews = total,
+                    page,
+                    totalPages,
+                    reviews
+                });
+            }
+            catch(Exception ex)
             {
-                overallRating = product.OverallRating,   
-                totalReviews = total,
-                page,
-                totalPages,
-                reviews
-            });
+                _logger.LogError("GetProductReviews failed with an unexpected error: {Message}", ex.Message);
+                return BadRequest("An unexpected error occurred while retrieving reviews.");
+            }
+
+
         }
 
         [NonAction]
         public void recalculateProductRating(int productId)
         {
-            var product = _context.Products.Find(productId);
-            if (productId == 0) return;
+            try
+            {
 
-            var reviews = _context.Reviews.Where(r => r.PId == productId).ToList();
+                var product = _context.Products.Find(productId);
+                if (productId == 0) return;
 
-            product.overriddenRating = reviews.Any() ? Math.Round(reviews.Average(r => r.Rating),1) : 0;
-            _context.Products.Update(product);
+                var reviews = _context.Reviews.Where(r => r.PId == productId).ToList();
+
+                product.overriddenRating = reviews.Any() ? Math.Round(reviews.Average(r => r.Rating), 1) : 0;
+                _context.Products.Update(product);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("recalculateProductRating failed with an unexpected error: {Message}", ex.Message);
+            }
         }
 
        
